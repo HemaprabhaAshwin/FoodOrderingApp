@@ -15,6 +15,7 @@ import com.upgrad.FoodOrderingApp.service.entity.CustomerAddressEntity;
 import com.upgrad.FoodOrderingApp.service.entity.CustomerEntity;
 import com.upgrad.FoodOrderingApp.service.entity.StateEntity;
 import com.upgrad.FoodOrderingApp.service.exception.AddressNotFoundException;
+import com.upgrad.FoodOrderingApp.service.exception.AuthenticationFailedException;
 import com.upgrad.FoodOrderingApp.service.exception.AuthorizationFailedException;
 import com.upgrad.FoodOrderingApp.service.exception.SaveAddressException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,11 +39,18 @@ public class AddressController {
     @Autowired
     private CustomerService customerService;
 
+    //Endpoint for creating/saving new addess for a customer
+    //Creates an AddressEntity
     @RequestMapping(value = "/address", method = RequestMethod.POST, consumes = MediaType.APPLICATION_JSON_UTF8_VALUE)
     public ResponseEntity<SaveAddressResponse> saveAddress(SaveAddressRequest saveAddressRequest,
                                                            @RequestHeader("authorization") final String accessToken) throws AuthorizationFailedException, SaveAddressException, AddressNotFoundException {
-     //   String[] bearerToken = accessToken.split("Bearer ");
-        CustomerEntity customerEntity = customerService.getCustomer(accessToken);
+        String[] bearerToken = accessToken.split("Bearer ");
+        CustomerEntity customerEntity = null;
+        if(bearerToken.length==1){
+            throw new AuthorizationFailedException("ATHR-005","Use valid authorization format <Bearer accessToken>");
+        } else {
+            customerEntity = customerService.getCustomer(bearerToken[1]);
+        }
         try{
             saveAddressRequest.getFlatBuildingName().isEmpty();
             saveAddressRequest.getLocality().isEmpty();
@@ -74,11 +82,16 @@ public class AddressController {
         return new ResponseEntity<SaveAddressResponse>(saveAddressResponse, HttpStatus.CREATED);
     }
 
-
+    //Endpoint to list all saved addresses of a customer
     @RequestMapping(value = "/address/customer", method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
     public ResponseEntity<AddressListResponse> getSavedAddresses(@RequestHeader("authorization") final String accessToken) throws AuthorizationFailedException {
-      //  String[] bearerToken = accessToken.split("Bearer ");
-        final CustomerEntity customerEntity = customerService.getCustomer(accessToken);
+        String[] bearerToken = accessToken.split("Bearer ");
+        CustomerEntity customerEntity = null;
+        if(bearerToken.length==1){
+            throw new AuthorizationFailedException("ATHR-005","Use valid authorization format <Bearer accessToken>");
+        } else {
+            customerEntity = customerService.getCustomer(bearerToken[1]);
+        }
         final List<AddressEntity> addressEntityList = addressService.getAllAddress(customerEntity);
 
         AddressListResponse addressListResponse = new AddressListResponse();
@@ -104,14 +117,22 @@ public class AddressController {
         return new ResponseEntity<AddressListResponse>(addressListResponse, HttpStatus.OK);
     }
 
+    //Deleting an address of a customer
+    // Only sets the active status to 0 for the address. Not completely removed from DB
     @RequestMapping(value = "/address/{address_id}", method = RequestMethod.DELETE)
     public ResponseEntity<DeleteAddressResponse> deleteAddress(@PathVariable("address_id") final String addressUuid,
                                                                @RequestHeader("authorization") final String accessToken) throws AuthorizationFailedException, AddressNotFoundException{
         if(addressUuid.isEmpty()){
             throw new AddressNotFoundException("ANF-005","Address id can not be empty");
         }
-      //  String[] bearerToken = accessToken.split("Bearer ");
-        final CustomerEntity loggedInCustomer = customerService.getCustomer(accessToken);
+        String[] bearerToken = accessToken.split("Bearer ");
+        CustomerEntity loggedInCustomer = null;
+        if(bearerToken.length==1){
+            throw new AuthorizationFailedException("ATHR-005","Use valid authorization format <Bearer accessToken>");
+        } else {
+            loggedInCustomer = customerService.getCustomer(bearerToken[1]);
+        }
+
         System.out.println("loggedinCustomer: "+loggedInCustomer.getFirstName());
         final AddressEntity addressEntityToBeDeleted = addressService.getAddressByUUID(addressUuid,loggedInCustomer);
         final String uuid = addressService.deleteAddress(addressEntityToBeDeleted).getUuid();
@@ -124,6 +145,8 @@ public class AddressController {
 
     }
 
+    //List all States in the table
+    //No API input
     @RequestMapping(value = "/states" , method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
     public ResponseEntity<StatesListResponse> getAllStates(){
         List<StateEntity> stateEntityList = new ArrayList<>();
